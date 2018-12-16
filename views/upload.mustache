@@ -1,0 +1,18 @@
+{{>top}}        
+      <div class="p-3 flex-grow-1">
+        <h1>Upload <tt>{{{filename}}}</tt></h1>
+        {{#uploadError}}
+        <div class="alert alert-danger">{{uploadError}}</div>
+        {{/uploadError}}
+        {{#uploadSuccess}}
+        <div class="alert alert-success">{{uploadSuccess}}</div>
+        {{/uploadSuccess}}
+        <form method="POST" action="{{action}}">
+          <div class="form-group">
+            <label for="content">Content:</label>
+            <input type="file" class="form-control" name="content" value="{{content}}" />
+          </div>
+          <button class="btn btn-primary" type="submit">Upload</button>
+        </form>
+      </div>
+{{>bottom}}
