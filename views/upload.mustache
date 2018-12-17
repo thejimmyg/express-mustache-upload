@@ -7,7 +7,7 @@
         {{#uploadSuccess}}
         <div class="alert alert-success">{{uploadSuccess}}</div>
         {{/uploadSuccess}}
-        <form method="POST" action="{{action}}">
+        <form method="POST" action="{{action}}" encType="multipart/form-data">
           <div class="form-group">
             <label for="content">Content:</label>
             <input type="file" class="form-control" name="content" value="{{content}}" />

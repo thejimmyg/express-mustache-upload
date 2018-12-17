@@ -3,11 +3,13 @@
 **CAUTION: Under active development, not suitable for production use for people
 outside the development team yet.**
 
+This script will look at the URL path then the uploaded file name when choosing how to name a file.
+
 ## Example
 
 ```
 npm install
-SIGN_IN_URL=/user/signin SCRIPT_NAME=/ DEBUG=express-file-uploader,express-mustache-jwt-signin DIR=uploads PORT=9006 SECRET='reallysecret' npm start
+DISABLE_AUTH=true SCRIPT_NAME="" DEBUG=express-file-uploader,express-mustache-jwt-signin DIR=uploads PORT=9006 SECRET='reallysecret' npm start
 ```
 
 Visit http://localhost:9006.
@@ -46,6 +48,6 @@ npm run docker:run
 
 ## Changelog
 
-### 0.1.0 WIP
+### 0.1.0 2018-12-17
 
 * Initial release

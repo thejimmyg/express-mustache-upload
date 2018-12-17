@@ -1,33 +1,36 @@
-const bodyParser = require('body-parser')
 const cookieParser = require('cookie-parser')
+const fileUpload = require('express-fileupload')
 const debug = require('debug')('express-file-uploader')
 const express = require('express')
-const fs = require('fs')
 const path = require('path')
 const setupMustache = require('express-mustache-overlays')
 const shell = require('shelljs')
 const { setupMiddleware } = require('express-mustache-jwt-signin')
-const { promisify } = require('util')
-
-const readFileAsync = promisify(fs.readFile)
-const writeFileAsync = promisify(fs.writeFile)
 
 const port = process.env.PORT || 9005
 const scriptName = process.env.SCRIPT_NAME || ''
+if (scriptName.endsWith('/')) {
+  throw new Error('SCRIPT_NAME should not end with /.')
+}
 const uploadDir = process.env.DIR
 if (!uploadDir) {
   throw new Error('No DIR environment variable set to specify the path for uploaded files.')
 }
 const secret = process.env.SECRET
-if (!secret || secret.length < 8) {
-  throw new Error('No SECRET environment variable set, or the SECRET is too short. Need 8 characters')
+const signInURL = process.env.SIGN_IN_URL
+const disableAuth = ((process.env.DISABLE_AUTH || 'false').toLowerCase() === 'true')
+if (!disableAuth) {
+  if (!secret || secret.length < 8) {
+    throw new Error('No SECRET environment variable set, or the SECRET is too short. Need 8 characters')
+  }
+  if (!signInURL) {
+    throw new Error('No SIGN_IN_URL environment variable set')
+  }
+} else {
+  debug('Disabled auth')
 }
 const mustacheDirs = process.env.MUSTACHE_DIRS ? process.env.MUSTACHE_DIRS.split(':') : []
 mustacheDirs.push(path.join(__dirname, '..', 'views'))
-const signInURL = process.env.SIGN_IN_URL
-if (!signInURL) {
-  throw new Error('No SIGN_IN_URL environment variable set')
-}
 
 const main = async () => {
   const app = express()
@@ -36,10 +39,23 @@ const main = async () => {
   const templateDefaults = { title: 'Title', scriptName, signOutURL: '/user/signout', signInURL: '/user/signin' }
   await setupMustache(app, templateDefaults, mustacheDirs)
 
-  const {signedIn, withUser, hasClaims } = setupMiddleware(secret, {signInURL})
-  app.use(withUser)
+  let { signedIn, withUser, hasClaims } = setupMiddleware(secret, { signInURL })
+  if (disableAuth) {
+    signedIn = function (req, res, next) {
+      debug(`signedIn disabled by DISBABLE_AUTH='true'`)
+      next()
+    }
+    hasClaims = function () {
+      return function (req, res, next) {
+        debug(`hasClaims disabled by DISBABLE_AUTH='true'`)
+        next()
+      }
+    }
+  } else {
+    app.use(withUser)
+  }
 
-  app.use(bodyParser.urlencoded({ extended: true }))
+  app.use(fileUpload())
   app.get(scriptName, signedIn, (req, res) => {
     debug('Upload / handler')
     const ls = shell.ls(uploadDir)
@@ -55,38 +71,43 @@ const main = async () => {
 
   app.all(scriptName + '/upload/*', signedIn, hasClaims(claims => claims.admin), async (req, res) => {
     debug('Upload upload/* handler')
-    const filename = req.params[0]
-    const filePath = path.join(uploadDir, filename)
-    debug(filename, filePath)
     let uploadError = ''
     let uploadSuccess = ''
     const action = req.path
     let content = ''
+    let filename = req.params[0]
     if (req.method === 'POST') {
-      content = req.body.content
-      let error = false
+      if (Object.keys(req.files).length === 0) {
+        return res.status(400).send('No files were uploaded.')
+      }
+      let sampleFile = req.files.content
+      filename = req.params[0]
+      if (!filename) {
+        filename = sampleFile.name
+      }
+      const filePath = path.join(uploadDir, filename)
+      debug(filename, filePath)
       try {
-        await writeFileAsync(filePath, content, { encoding: 'UTF-8' })
+        await new Promise((resolve, reject) => {
+          // Use the mv() method to place the file somewhere on your server
+          sampleFile.mv(filePath, function (err) {
+            if (err) {
+              reject(err)
+            } else {
+              resolve()
+            }
+          })
+        })
+        uploadSuccess = 'File saved.'
       } catch (e) {
         uploadError = 'Could not save the file'
-        debug(e.toString())
-        error = true
-      }
-      if (error) {
-        res.render('upload', { user: req.user, title: 'Success', scriptName, content, uploadError, action, filename })
+        debug(e)
+        res.render('upload', { user: req.user, title: 'Upload', scriptName, uploadError, action, filename })
         return
-      } else {
-        uploadSuccess = 'File saved.'
       }
     }
     if (req.method === 'GET' || uploadError.length === 0) {
-      try {
-        content = await readFileAsync(filePath, { encoding: 'UTF-8' })
-      } catch (e) {
-        debug(e)
-        content = ''
-      }
-      debug(content)
+      content = ''
     }
     res.render('upload', { user: req.user, title: 'Upload', scriptName, uploadSuccess, content, filename })
   })
