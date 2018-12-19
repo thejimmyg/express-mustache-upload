@@ -16,7 +16,7 @@ RUN mkdir -p /app/uploads/
 COPY views/ /app/views/
 COPY public/ /app/public/
 WORKDIR /app
-EXPOSE 9005
+EXPOSE 80
 ENV NODE_PATH=/app/node_modules
 ENV NODE_ENV=production
 ENV DIR=/app/uploads/

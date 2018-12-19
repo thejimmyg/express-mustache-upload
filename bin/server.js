@@ -7,7 +7,7 @@ const setupMustache = require('express-mustache-overlays')
 const shell = require('shelljs')
 const { setupMiddleware } = require('express-mustache-jwt-signin')
 
-const port = process.env.PORT || 9005
+const port = process.env.PORT || 80
 const scriptName = process.env.SCRIPT_NAME || ''
 if (scriptName.endsWith('/')) {
   throw new Error('SCRIPT_NAME should not end with /.')
@@ -123,7 +123,13 @@ const main = async () => {
   // Error handler has to be last
   app.use(function (err, req, res, next) {
     debug('Error:', err)
-    res.status(500).send('Something broke!')
+    res.status(500)
+    try {
+      res.render('500', { user: req.user, scriptName })
+    } catch (e) {
+      debug('Error during rendering 500 page:', e)
+      res.send('Internal server error.')
+    }
   })
 
   app.listen(port, () => console.log(`Example app listening on port ${port}`))

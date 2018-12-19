@@ -3,3 +3,5 @@
 .gitignore
 .sw[op]
 node_modules
+domain
+upload
