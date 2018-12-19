@@ -13,7 +13,7 @@ You configure the container by setting environment variables:
 * `MUSTACHE_DIRS` - A `:` separated list of paths the system should look for mustache templates before using its default ones.
 * `DISABLE_AUTH` - Defaults to `false` but can be `true` to make file uploading and downloading work without requiring sign in. Only recommended for development.
 * `SCRIPT_NAME` - The base URL at which the app is hosted. Defaults to `""` and must not end with `/`. Usually this is set to something like `/upload`
-* `DEBUG` - The loggers you want to see log output for. Defaults to `express-file-uploader,express-mustache-jwt-signin`.
+* `DEBUG` - The loggers you want to see log output for. e.g. `express-file-uploader,express-mustache-jwt-signin`.
 * `PORT` - The port you would like the app to run on. Defaults to 80.
 * `SECRET` - The secret string used to sign cookies. Make sure this is a long secret that no-one else knows, otherwise they could forge the user information in your cookies. Make sure you set the `SECRET` variable to the same value in the `signin` container too, otherwise they won't recognose each other's cookies.
 
@@ -98,7 +98,7 @@ npm run docker:stop:local
 
 ```
 npm install
-MUSTACHE_DIRS="" DISABLE_AUTH=true SCRIPT_NAME="" DEBUG=express-file-uploader,express-mustache-jwt-signin DIR=uploads PORT=9006 SECRET='reallysecret' npm start
+MUSTACHE_DIRS="" DISABLE_AUTH=true SCRIPT_NAME="" DEBUG=express-file-uploader,express-mustache-jwt-signin DIR=upload PORT=9006 SECRET='reallysecret' npm start
 ```
 
 Visit http://localhost:9006.
