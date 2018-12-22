@@ -1,9 +1,9 @@
 const cookieParser = require('cookie-parser')
 const fileUpload = require('express-fileupload')
-const debug = require('debug')('express-file-uploader')
+const debug = require('debug')('express-mustache-upload')
 const express = require('express')
 const path = require('path')
-const setupMustache = require('express-mustache-overlays')
+const { prepareMustacheOverlays, setupErrorHandlers } = require('express-mustache-overlays')
 const shell = require('shelljs')
 const { setupMiddleware } = require('express-mustache-jwt-signin')
 
@@ -17,7 +17,8 @@ if (!uploadDir) {
   throw new Error('No DIR environment variable set to specify the path for uploaded files.')
 }
 const secret = process.env.SECRET
-const signInURL = process.env.SIGN_IN_URL
+const signInURL = process.env.SIGN_IN_URL || '/user/signin'
+const signOutURL = process.env.SIGN_OUT_URL || '/user/signout'
 const disableAuth = ((process.env.DISABLE_AUTH || 'false').toLowerCase() === 'true')
 if (!disableAuth) {
   if (!secret || secret.length < 8) {
@@ -30,16 +31,24 @@ if (!disableAuth) {
   debug('Disabled auth')
 }
 const mustacheDirs = process.env.MUSTACHE_DIRS ? process.env.MUSTACHE_DIRS.split(':') : []
-mustacheDirs.push(path.join(__dirname, '..', 'views'))
+const publicFilesDirs = process.env.PUBLIC_FILES_DIRS ? process.env.PUBLIC_FILES_DIRS.split(':') : []
+const publicURLPath = process.env.PUBLIC_URL_PATH || scriptName + '/public'
+const listTitle = process.env.LIST_TITLE || 'Upload Files'
+const uploadTitle = process.env.EDIT_TITLE || 'Uploading'
 
 const main = async () => {
   const app = express()
   app.use(cookieParser())
 
-  const templateDefaults = { title: 'Title', scriptName, signOutURL: '/user/signout', signInURL: '/user/signin' }
-  await setupMustache(app, templateDefaults, mustacheDirs)
+  const overlays = await prepareMustacheOverlays(app, { scriptName, publicURLPath })
 
-  let { signedIn, withUser, hasClaims } = setupMiddleware(secret, { signInURL })
+  app.use((req, res, next) => {
+    debug('Setting up locals')
+    res.locals = Object.assign({}, res.locals, { publicURLPath, scriptName, title: 'Express Mustache Upload', signOutURL: signOutURL, signInURL: signInURL })
+    next()
+  })
+
+  let { signedIn, withUser, hasClaims } = await setupMiddleware(app, secret, { overlays, signOutURL, signInURL })
   if (disableAuth) {
     signedIn = function (req, res, next) {
       debug(`signedIn disabled by DISBABLE_AUTH='true'`)
@@ -55,82 +64,88 @@ const main = async () => {
     app.use(withUser)
   }
 
+  overlays.overlayMustacheDir(path.join(__dirname, '..', 'views'))
+  overlays.overlayPublicFilesDir(path.join(__dirname, '..', 'public'))
+
+  // Set up any other overlays directories here
+  mustacheDirs.forEach(dir => {
+    debug('Adding mustache dir', dir)
+    overlays.overlayMustacheDir(dir)
+  })
+  publicFilesDirs.forEach(dir => {
+    debug('Adding publicFiles dir', dir)
+    overlays.overlayPublicFilesDir(dir)
+  })
+
   app.use(fileUpload())
-  app.get(scriptName, signedIn, (req, res) => {
-    debug('Upload / handler')
-    const ls = shell.ls(uploadDir)
-    if (shell.error()) {
-      throw new Error('Could not list ' + uploadDir)
-    }
-    const files = []
-    for (let filename of ls) {
-      files.push({ name: filename, url: scriptName + '/upload/' + encodeURIComponent(filename) })
-    }
-    res.render('list', { user: req.user, scriptName, title: 'List', files })
-  })
-
-  app.all(scriptName + '/upload/*', signedIn, hasClaims(claims => claims.admin), async (req, res) => {
-    debug('Upload upload/* handler')
-    let uploadError = ''
-    let uploadSuccess = ''
-    const action = req.path
-    let content = ''
-    let filename = req.params[0]
-    if (req.method === 'POST') {
-      if (Object.keys(req.files).length === 0) {
-        return res.status(400).send('No files were uploaded.')
-      }
-      let sampleFile = req.files.content
-      filename = req.params[0]
-      if (!filename) {
-        filename = sampleFile.name
-      }
-      const filePath = path.join(uploadDir, filename)
-      debug(filename, filePath)
-      try {
-        await new Promise((resolve, reject) => {
-          // Use the mv() method to place the file somewhere on your server
-          sampleFile.mv(filePath, function (err) {
-            if (err) {
-              reject(err)
-            } else {
-              resolve()
-            }
-          })
-        })
-        uploadSuccess = 'File saved.'
-      } catch (e) {
-        uploadError = 'Could not save the file'
-        debug(e)
-        res.render('upload', { user: req.user, title: 'Upload', scriptName, uploadError, action, filename })
-        return
-      }
-    }
-    if (req.method === 'GET' || uploadError.length === 0) {
-      content = ''
-    }
-    res.render('upload', { user: req.user, title: 'Upload', scriptName, uploadSuccess, content, filename })
-  })
-
-  app.use(express.static(path.join(__dirname, '..', 'public')))
-
-  // Must be after other routes - Handle 404
-  app.get('*', (req, res) => {
-    res.status(404)
-    res.render('404', { user: req.user, scriptName })
-  })
-
-  // Error handler has to be last
-  app.use(function (err, req, res, next) {
-    debug('Error:', err)
-    res.status(500)
+  app.get(scriptName, signedIn, async (req, res, next) => {
     try {
-      res.render('500', { user: req.user, scriptName })
+      debug('Upload / handler')
+      const ls = shell.ls(uploadDir)
+      if (shell.error()) {
+        throw new Error('Could not list ' + uploadDir)
+      }
+      const files = []
+      for (let filename of ls) {
+        files.push({ name: filename, url: scriptName + '/upload/' + encodeURIComponent(filename) })
+      }
+      res.render('list', { scriptName, title: listTitle, files })
     } catch (e) {
-      debug('Error during rendering 500 page:', e)
-      res.send('Internal server error.')
+      debug(e)
+      next(e)
     }
   })
+
+  app.all(scriptName + '/upload/*', signedIn, hasClaims(claims => claims.admin), async (req, res, next) => {
+    try {
+      debug('Upload upload/* handler')
+      let uploadError = ''
+      let uploadSuccess = ''
+      const action = req.path
+      let content = ''
+      let filename = req.params[0]
+      if (req.method === 'POST') {
+        if (Object.keys(req.files).length === 0) {
+          return res.status(400).send('No files were uploaded.')
+        }
+        let sampleFile = req.files.content
+        filename = req.params[0]
+        if (!filename) {
+          filename = sampleFile.name
+        }
+        const filePath = path.join(uploadDir, filename)
+        debug(filename, filePath)
+        try {
+          await new Promise((resolve, reject) => {
+            // Use the mv() method to place the file somewhere on your server
+            sampleFile.mv(filePath, function (err) {
+              if (err) {
+                reject(err)
+              } else {
+                resolve()
+              }
+            })
+          })
+          uploadSuccess = 'File saved.'
+        } catch (e) {
+          uploadError = 'Could not save the file'
+          debug(e)
+          res.render('upload', { title: uploadTitle, scriptName, uploadError, action, filename })
+          return
+        }
+      }
+      if (req.method === 'GET' || uploadError.length === 0) {
+        content = ''
+      }
+      res.render('upload', { title: uploadTitle, scriptName, uploadSuccess, content, filename })
+    } catch (e) {
+      next(e)
+    }
+  })
+
+  overlays.setup()
+
+  setupErrorHandlers(app)
 
   app.listen(port, () => console.log(`Example app listening on port ${port}`))
 }

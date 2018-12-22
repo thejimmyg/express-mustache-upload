@@ -13,7 +13,7 @@ You configure the container by setting environment variables:
 * `MUSTACHE_DIRS` - A `:` separated list of paths the system should look for mustache templates before using its default ones.
 * `DISABLE_AUTH` - Defaults to `false` but can be `true` to make file uploading and downloading work without requiring sign in. Only recommended for development.
 * `SCRIPT_NAME` - The base URL at which the app is hosted. Defaults to `""` and must not end with `/`. Usually this is set to something like `/upload`
-* `DEBUG` - The loggers you want to see log output for. e.g. `express-file-uploader,express-mustache-jwt-signin`.
+* `DEBUG` - The loggers you want to see log output for. e.g. `express-mustache-upload,express-mustache-jwt-signin`.
 * `PORT` - The port you would like the app to run on. Defaults to 80.
 * `SECRET` - The secret string used to sign cookies. Make sure this is a long secret that no-one else knows, otherwise they could forge the user information in your cookies. Make sure you set the `SECRET` variable to the same value in the `signin` container too, otherwise they won't recognose each other's cookies.
 
@@ -26,11 +26,11 @@ point to `127.0.0.1`.
 Also, make sure you have the source code:
 
 ```
-git clone https://github.com/thejimmyg/express-file-uploader.git
-cd express-file-uploader
+git clone https://github.com/thejimmyg/express-mustache-upload.git
+cd express-mustache-upload
 ```
 
-**Tip: You can also use the published docker image at https://cloud.docker.com/u/thejimmyg/repository/docker/thejimmyg/express-file-uploader if you change the `docker-compose.yml` file to use `image: thejimmyg/express-file-uploader:0.1.1` instead of building from source**
+**Tip: You can also use the published docker image at https://cloud.docker.com/u/thejimmyg/repository/docker/thejimmyg/express-mustache-upload if you change the `docker-compose.yml` file to use `image: thejimmyg/express-mustache-upload:0.1.1` instead of building from source**
 
 OK, let's begin.
 
@@ -98,10 +98,10 @@ npm run docker:stop:local
 
 ```
 npm install
-MUSTACHE_DIRS="" DISABLE_AUTH=true SCRIPT_NAME="" DEBUG=express-file-uploader,express-mustache-jwt-signin DIR=upload PORT=9006 SECRET='reallysecret' npm start
+MUSTACHE_DIRS="" DISABLE_AUTH=true SCRIPT_NAME="" DEBUG=express-mustache-upload,express-mustache-jwt-signin DIR=upload PORT=8000 SECRET='reallysecret' npm start
 ```
 
-Visit http://localhost:9006.
+Visit http://localhost:8000.
 
 You should be able to make requests to routes restricted with `signedIn`
 middleware as long as you have the cookie, or use the JWT in an `Authorization
@@ -127,6 +127,11 @@ npm run fix
 ```
 
 ## Changelog
+
+### 0.1.2 2018-12-22
+
+* Renamed from `express-file-uploader` to `express-mustache-uplaod` so that the project can be published on NPM
+* Upgraded to `express-mustache-jwt-signin` 0.3.1 and `express-mustache-overlays` 0.3.0
 
 ### 0.1.1 2018-12-19
 

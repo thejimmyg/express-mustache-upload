@@ -18,8 +18,8 @@ services:
       --key domain/www.example.localhost/sni/key.pem
       --proxy '
         www.example.localhost:
-          - ["/user", "signin:8000/user", {"limit": "100mb"}]
-          - ["/upload", "upload:80/upload", {"limit": "100mb"}]
+          - ["/user", "signin:80/user", {"limit": "100mb"}]
+          - ["/", "upload:80/", {"limit": "900mb"}]
       '
       --domain domain
     links:
@@ -27,35 +27,39 @@ services:
       - signin:signin
   signin:
     restart: unless-stopped
-    image: thejimmyg/express-mustache-jwt-signin:0.2.6
-    expose:
-      - 8000
-    environment:
-      SECRET: a3707b31-0319-4b16-90b9-75aeff33752d
-      DEBUG: "express-mustache-jwt-signin,express-mustache-overlays"
-      PORT: 8000
-      SCRIPT_NAME: /user
-      DASHBOARD_URL: /upload
-      # Add this if you want to customise the sign in templates
-      # MUSTACHE_DIRS: /app/views-signin
-    volumes:
-      - ./users:/app/yaml:ro
-      # Add this if you want to customise the sign in templates
-      # - ./views-signin:/app/views-signin:ro
-  upload:
-    restart: unless-stopped
-    build: ./
-    # image: thejimmyg/express-file-uploader:0.1.1
+    image: thejimmyg/express-mustache-jwt-signin:0.3.1
     expose:
       - 80
     environment:
       SECRET: a3707b31-0319-4b16-90b9-75aeff33752d
-      DEBUG: "express-file-uploader,express-mustache-jwt-signin,express-mustache-overlays"
+      DEBUG: "express-mustache-jwt-signin,express-mustache-overlays"
+      PORT: 80
+      SCRIPT_NAME: /user
+      DASHBOARD_URL: /upload
+      # Add this if you want to customise the sign in templates
+      MUSTACHE_DIRS: /app/views-upload
+    volumes:
+      - ./users:/app/yaml:ro
+      # Add this if you want to customise the sign in templates
+      - ./views-upload:/app/views-upload:ro
+  upload:
+    restart: unless-stopped
+    build: ./
+    expose:
+      - 80
+    environment:
+      SECRET: a3707b31-0319-4b16-90b9-75aeff33752d
+      DEBUG: "express-mustache-upload,express-mustache-jwt-signin,express-mustache-overlays"
       DIR: /app/upload
-      SCRIPT_NAME: /upload
+      SCRIPT_NAME: ""
       PORT: 80
       SIGN_IN_URL: /user/signin
       MUSTACHE_DIRS: /app/views-upload
+      PUBLIC_FILES_DIRS: /app/public-upload
     volumes:
       - ./upload:/app/upload:rw
       - ./views-upload:/app/views-upload:ro
+      - ./public-upload:/app/public-upload:ro
+      # If you are working on multiple node modules that don't require compiling, you can always mount them in for debugging:
+      # - /Users/james/Desktop/jimmyg/git/express-mustache-overlays:/app/node_modules/express-mustache-overlays:ro
+      # - /Users/james/Desktop/jimmyg/git/express-mustache-jwt-signin:/app/node_modules/express-mustache-jwt-signin:ro
