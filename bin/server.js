@@ -5,8 +5,11 @@ const express = require('express')
 const path = require('path')
 const { prepareMustacheOverlays, setupErrorHandlers } = require('express-mustache-overlays')
 const shell = require('shelljs')
+const fs = require('fs')
 const { setupMiddleware } = require('express-mustache-jwt-signin')
+const { promisify } = require('util')
 
+const lstatAsync = promisify(fs.lstat)
 const port = process.env.PORT || 80
 const scriptName = process.env.SCRIPT_NAME || ''
 if (scriptName.endsWith('/')) {
@@ -81,40 +84,52 @@ const main = async () => {
   app.get(scriptName, signedIn, async (req, res, next) => {
     try {
       debug('Upload / handler')
-      const ls = shell.ls(uploadDir)
+      const ls = shell.ls('-R', uploadDir)
       if (shell.error()) {
         throw new Error('Could not list ' + uploadDir)
       }
       const files = []
       for (let filename of ls) {
-        files.push({ name: filename, url: scriptName + '/upload/' + encodeURIComponent(filename) })
+        const stat = await lstatAsync(path.join(uploadDir, filename))
+        if (stat.isFile()) {
+          files.push({ name: filename, url: scriptName + '/upload?filename=' + encodeURIComponent(filename) })
+        }
       }
-      res.render('list', { scriptName, title: listTitle, files })
+      res.render('list', { title: listTitle, files })
     } catch (e) {
       debug(e)
       next(e)
     }
   })
 
-  app.all(scriptName + '/upload/*', signedIn, hasClaims(claims => claims.admin), async (req, res, next) => {
+  app.all(scriptName + '/upload', signedIn, hasClaims(claims => claims.admin), async (req, res, next) => {
     try {
-      debug('Upload upload/* handler')
+      debug('Upload handler')
+
       let uploadError = ''
       let uploadSuccess = ''
-      const action = req.path
+      const action = req.originalUrl
+      const expected = path.normalize(uploadDir)
       let content = ''
-      let filename = req.params[0]
+      let filename = req.query['filename']
       if (req.method === 'POST') {
         if (Object.keys(req.files).length === 0) {
           return res.status(400).send('No files were uploaded.')
         }
         let sampleFile = req.files.content
-        filename = req.params[0]
         if (!filename) {
           filename = sampleFile.name
         }
         const filePath = path.join(uploadDir, filename)
         debug(filename, filePath)
+        if (!path.normalize(filePath).startsWith(expected + '/')) {
+          throw new Error('Requested file is not in the editable directory: ' + filePath)
+        }
+        debug(filePath)
+        shell.mkdir('-p', path.dirname(filePath))
+        if (shell.error()) {
+          throw new Error(`Could not create directories for ${filePath}.`)
+        }
         try {
           await new Promise((resolve, reject) => {
             // Use the mv() method to place the file somewhere on your server
@@ -130,14 +145,14 @@ const main = async () => {
         } catch (e) {
           uploadError = 'Could not save the file'
           debug(e)
-          res.render('upload', { title: uploadTitle, scriptName, uploadError, action, filename })
+          res.render('upload', { title: uploadTitle, uploadError, action, filename })
           return
         }
       }
       if (req.method === 'GET' || uploadError.length === 0) {
         content = ''
       }
-      res.render('upload', { title: uploadTitle, scriptName, uploadSuccess, content, filename })
+      res.render('upload', { title: uploadTitle, action, uploadSuccess, content, filename })
     } catch (e) {
       next(e)
     }

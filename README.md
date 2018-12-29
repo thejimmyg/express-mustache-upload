@@ -1,4 +1,4 @@
-# Express File Uploader
+# Express Mustache Upload
 
 **CAUTION: Under active development, not suitable for production use for people
 outside the development team yet.**
@@ -98,7 +98,7 @@ npm run docker:stop:local
 
 ```
 npm install
-MUSTACHE_DIRS="" DISABLE_AUTH=true SCRIPT_NAME="" DEBUG=express-mustache-upload,express-mustache-jwt-signin DIR=upload PORT=8000 SECRET='reallysecret' npm start
+MUSTACHE_DIRS="" DISABLE_AUTH=true SCRIPT_NAME="" DEBUG=express-mustache-upload,express-mustache-overlays,express-mustache-jwt-signin DIR=upload PORT=8000 SECRET='reallysecret' npm start
 ```
 
 Visit http://localhost:8000.
@@ -127,6 +127,10 @@ npm run fix
 ```
 
 ## Changelog
+
+### 0.1.3 2018-12-29
+
+* Upload files to new directories
 
 ### 0.1.2 2018-12-22
 
