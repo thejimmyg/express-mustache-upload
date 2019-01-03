@@ -12,6 +12,7 @@ You configure the container by setting environment variables:
 * `DIR` - The path which files should be uploaded to
 * `MUSTACHE_DIRS` - A `:` separated list of paths the system should look for mustache templates before using its default ones.
 * `DISABLE_AUTH` - Defaults to `false` but can be `true` to make file uploading and downloading work without requiring sign in. Only recommended for development.
+* `DISABLED_AUTH_USER` - If `DISABLE_AUTH` is set to `true`, set this to be the JSON-encoded representation of the auth user you want the server to assume is signed in. e.g. `'{"admin": true, "username": "disableduser"}'`. Only recommended for development.
 * `SCRIPT_NAME` - The base URL at which the app is hosted. Defaults to `""` and must not end with `/`. Usually this is set to something like `/upload`
 * `DEBUG` - The loggers you want to see log output for. e.g. `express-mustache-upload,express-mustache-jwt-signin`.
 * `PORT` - The port you would like the app to run on. Defaults to 80.
@@ -98,7 +99,7 @@ npm run docker:stop:local
 
 ```
 npm install
-MUSTACHE_DIRS="" DISABLE_AUTH=true SCRIPT_NAME="" DEBUG=express-mustache-upload,express-mustache-overlays,express-mustache-jwt-signin DIR=upload PORT=8000 SECRET='reallysecret' npm start
+MUSTACHE_DIRS="" DISABLE_AUTH=true DISABLED_AUTH_USER='{"admin": true, "username": "disableduser"}' SCRIPT_NAME="" DEBUG=express-mustache-upload,express-mustache-overlays,express-mustache-jwt-signin DIR=upload PORT=8000 SECRET='reallysecret' npm start
 ```
 
 Visit http://localhost:8000.
@@ -127,6 +128,11 @@ npm run fix
 ```
 
 ## Changelog
+
+### 0.1.4 2019-01-02
+
+* Handling SIGTERM
+* Support `DISABLED_AUTH_USER`
 
 ### 0.1.3 2018-12-29
 

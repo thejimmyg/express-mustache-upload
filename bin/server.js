@@ -6,7 +6,7 @@ const path = require('path')
 const { prepareMustacheOverlays, setupErrorHandlers } = require('express-mustache-overlays')
 const shell = require('shelljs')
 const fs = require('fs')
-const { setupMiddleware } = require('express-mustache-jwt-signin')
+const { makeStaticWithUser, setupMiddleware } = require('express-mustache-jwt-signin')
 const { promisify } = require('util')
 
 const lstatAsync = promisify(fs.lstat)
@@ -33,6 +33,7 @@ if (!disableAuth) {
 } else {
   debug('Disabled auth')
 }
+const disabledAuthUser = process.env.DISABLED_AUTH_USER
 const mustacheDirs = process.env.MUSTACHE_DIRS ? process.env.MUSTACHE_DIRS.split(':') : []
 const publicFilesDirs = process.env.PUBLIC_FILES_DIRS ? process.env.PUBLIC_FILES_DIRS.split(':') : []
 const publicURLPath = process.env.PUBLIC_URL_PATH || scriptName + '/public'
@@ -51,21 +52,13 @@ const main = async () => {
     next()
   })
 
-  let { signedIn, withUser, hasClaims } = await setupMiddleware(app, secret, { overlays, signOutURL, signInURL })
+  const authMiddleware = await setupMiddleware(app, secret, { overlays, signOutURL, signInURL })
+  const { signedIn, hasClaims } = authMiddleware
+  let { withUser } = authMiddleware
   if (disableAuth) {
-    signedIn = function (req, res, next) {
-      debug(`signedIn disabled by DISBABLE_AUTH='true'`)
-      next()
-    }
-    hasClaims = function () {
-      return function (req, res, next) {
-        debug(`hasClaims disabled by DISBABLE_AUTH='true'`)
-        next()
-      }
-    }
-  } else {
-    app.use(withUser)
+    withUser = makeStaticWithUser(JSON.parse(disabledAuthUser || 'null'))
   }
+  app.use(withUser)
 
   overlays.overlayMustacheDir(path.join(__dirname, '..', 'views'))
   overlays.overlayPublicFilesDir(path.join(__dirname, '..', 'public'))
@@ -158,7 +151,7 @@ const main = async () => {
     }
   })
 
-  overlays.setup()
+  await overlays.setup()
 
   setupErrorHandlers(app)
 
@@ -167,8 +160,12 @@ const main = async () => {
 
 main()
 
-// Better handling of SIGNIN for docker
+// Better handling of SIGINT and SIGTERM for docker
 process.on('SIGINT', function () {
-  console.log('Exiting ...')
+  console.log('Received SIGINT. Exiting ...')
+  process.exit()
+})
+process.on('SIGTERM', function () {
+  console.log('Received SIGTERM. Exiting ...')
   process.exit()
 })

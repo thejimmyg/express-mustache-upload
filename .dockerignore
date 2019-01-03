@@ -5,3 +5,5 @@
 node_modules
 domain
 upload
+views-upload
+public-upload
